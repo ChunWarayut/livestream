@@ -1,12 +1,19 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
+import { SrsRtcPublisherAsync, SrsError } from '../../utils/srs.sdk'; // Import the SrsRtcPublisherAsync module
+import { nanoid } from 'nanoid'
+export default function LiveStream() {
 
-export default function LiveStream () {
-  
-  const [devices, setDevices] = useState([]);
-  const [selectedVideoDevice, setSelectedVideoDevice] = useState(null);
-  
-  const localVideoRef = useRef(null)
+  const [devices, setDevices] = useState([]) as any[];
+  const [selectedVideoDevice, setSelectedVideoDevice] = useState(null) as any;
+
+  const [sdk, setSdk] = useState(null) as any;
+  const [url, setUrl] = useState(`webrtc://167.172.78.114/live/${nanoid(5)}?secret=a4413240dd2847d9b52688b0e2202145`) as any;
+  const [sessionID, setSessionID] = useState('') as any;
+  const [acodecs, setAcodecs] = useState('') as any;
+  const [vcodecs, setVcodecs] = useState('') as any;
+
+  const localVideoRef = useRef(null) as any;
 
   useEffect(() => {
     navigator.mediaDevices.enumerateDevices().then(devices => {
@@ -15,12 +22,40 @@ export default function LiveStream () {
       setSelectedVideoDevice(videoDevices[0]?.deviceId);
     });
   }, []);
+  function SrsRtcFormatSenders(senders, kind) {
+    var codecs = [];
+    senders.forEach(function (sender) {
+      var params = sender.getParameters();
+      params && params.codecs && params.codecs.forEach(function (c) {
+        if (kind && sender.track.kind !== kind) {
+          return;
+        }
+
+        if (c.mimeType.indexOf('/red') > 0 || c.mimeType.indexOf('/rtx') > 0 || c.mimeType.indexOf('/fec') > 0) {
+          return;
+        }
+
+        var s = '';
+
+        s += c.mimeType.replace('audio/', '').replace('video/', '');
+        s += ', ' + c.clockRate + 'HZ';
+        if (sender.track.kind === "audio") {
+          s += ', channels: ' + c.channels;
+        }
+        s += ', pt: ' + c.payloadType;
+
+        codecs.push(s);
+      });
+    });
+    return codecs.join(", ");
+  }
 
   const startStream = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: selectedVideoDevice }, audio: true })
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream
+        startPublish()
       }
     } catch (error) {
       console.error('Error accessing media devices: ', error)
@@ -30,28 +65,77 @@ export default function LiveStream () {
   const stopStream = () => {
     const stream = localVideoRef.current.srcObject
     const tracks = stream.getTracks()
-    tracks.forEach(track => track.stop())
+    tracks.forEach((track: { stop: () => any; }) => track.stop())
     localVideoRef.current.srcObject = null
+    sdk.close();
+    setSessionID(null)
   }
 
+  const startPublish = () => {
+    if (sdk) {
+      sdk.close();
+    }
 
+    const newSdk = new SrsRtcPublisherAsync();
+
+    newSdk.pc.onicegatheringstatechange = (event) => {
+      if (newSdk.pc.iceGatheringState === 'complete') {
+        setAcodecs(SrsRtcFormatSenders(newSdk.pc.getSenders(), 'audio'));
+        setVcodecs(SrsRtcFormatSenders(newSdk.pc.getSenders(), 'video'));
+      }
+    };
+
+    setSdk(newSdk);
+
+    const newUrl = document.getElementById('txt_url').value;
+    newSdk.publish(newUrl)
+      .then((session) => {
+        setSessionID(session.sessionid);
+        document.getElementById('simulator-drop').setAttribute('href', `${session.simulator}?drop=1&username=${session.sessionid}`);
+      })
+      .catch((reason) => {
+        if (reason instanceof SrsError) {
+          if (reason.name === 'HttpsRequiredError') {
+            alert(`WebRTC推流必须是HTTPS或者localhost：${reason.name} ${reason.message}`);
+          } else {
+            alert(`${reason.name} ${reason.message}`);
+          }
+        }
+
+        if (reason instanceof DOMException) {
+          if (reason.name === 'NotFoundError') {
+            alert(`找不到麦克风和摄像头设备：getUserMedia ${reason.name} ${reason.message}`);
+          } else if (reason.name === 'NotAllowedError') {
+            alert(`你禁止了网页访问摄像头和麦克风：getUserMedia ${reason.name} ${reason.message}`);
+          } else if (['AbortError', 'NotAllowedError', 'NotFoundError', 'NotReadableError', 'OverconstrainedError', 'SecurityError', 'TypeError'].includes(reason.name)) {
+            alert(`getUserMedia ${reason.name} ${reason.message}`);
+          }
+        }
+
+        newSdk.close();
+        localVideoRef.current.srcObject = null
+        setSessionID(null)
+        console.error(reason);
+      });
+  };
   useEffect(() => {
     if (selectedVideoDevice) {
       navigator.mediaDevices.getUserMedia({ video: { deviceId: selectedVideoDevice }, audio: true }).then(stream => {
         localVideoRef.current.srcObject = stream
+        startPublish()
       });
     }
   }, [selectedVideoDevice]);
 
 
-  const handleDeviceChange = event => {
+  const handleDeviceChange = (event: { target: { value: any; }; }) => {
     setSelectedVideoDevice(event.target.value);
   };
   return (
     <div>
       {devices.length > 0 && (
         <select value={selectedVideoDevice} onChange={handleDeviceChange}>
-          {devices.map(device => (
+          {devices.map((device: any) => (
             <option key={device.deviceId} value={device.deviceId}>
               {device.label}
             </option>
@@ -59,7 +143,33 @@ export default function LiveStream () {
         </select>
       )}
 
-      <video ref={localVideoRef} autoPlay playsInline></video>
+      <video ref={localVideoRef} id="rtc_media_player" autoPlay playsInline></video>
+
+      <div className="container">
+        <div className="form-inline">
+          URL:
+          <input
+            type="text"
+            id="txt_url"
+            className="input-xxlarge"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+          />
+        </div>
+
+        <label></label>
+        SessionID: <span id="sessionid">{sessionID}</span>
+
+        <label></label>
+        Audio: <span id="acodecs">{acodecs}</span>
+        <br />
+        Video: <span id="vcodecs">{vcodecs}</span>
+
+        <label></label>
+        Simulator: <a href='#' id='simulator-drop'>Drop</a>
+
+      </div>
+
       <button onClick={startStream}>Start Stream</button>
       <button onClick={stopStream}>Stop Stream</button>
     </div>
