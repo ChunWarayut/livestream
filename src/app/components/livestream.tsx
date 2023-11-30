@@ -1,6 +1,6 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
-import { SrsRtcPublisherAsync, SrsError } from '../../utils/srs.sdk'; // Import the SrsRtcPublisherAsync module
+import { SrsRtcPublisherAsync, SrsError } from '../../../nextDontCompile/srs.sdk'; // Import the SrsRtcPublisherAsync module
 import { nanoid } from 'nanoid'
 export default function LiveStream() {
 
@@ -8,7 +8,8 @@ export default function LiveStream() {
   const [selectedVideoDevice, setSelectedVideoDevice] = useState(null) as any;
 
   const [sdk, setSdk] = useState(null) as any;
-  const [url, setUrl] = useState(`webrtc://167.172.78.114/live/${nanoid(5)}?secret=a4413240dd2847d9b52688b0e2202145`) as any;
+  // const [url, setUrl] = useState(`webrtc://167.172.78.114/live/${nanoid(5)}?secret=a4413240dd2847d9b52688b0e2202145`) as any;
+  const [url, setUrl] = useState(`webrtc://167.172.78.114/live/REACTJS?secret=a4413240dd2847d9b52688b0e2202145`) as any;
   const [sessionID, setSessionID] = useState('') as any;
   const [drop, setDrop] = useState('#') as any;
   const [acodecs, setAcodecs] = useState('') as any;
