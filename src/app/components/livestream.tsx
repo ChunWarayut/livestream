@@ -10,6 +10,7 @@ export default function LiveStream() {
   const [sdk, setSdk] = useState(null) as any;
   const [url, setUrl] = useState(`webrtc://167.172.78.114/live/${nanoid(5)}?secret=a4413240dd2847d9b52688b0e2202145`) as any;
   const [sessionID, setSessionID] = useState('') as any;
+  const [drop, setDrop] = useState('#') as any;
   const [acodecs, setAcodecs] = useState('') as any;
   const [vcodecs, setVcodecs] = useState('') as any;
 
@@ -22,11 +23,11 @@ export default function LiveStream() {
       setSelectedVideoDevice(videoDevices[0]?.deviceId);
     });
   }, []);
-  function SrsRtcFormatSenders(senders, kind) {
-    var codecs = [];
-    senders.forEach(function (sender) {
+  function SrsRtcFormatSenders(senders: any[], kind: string) {
+    var codecs: string[] = [];
+    senders.forEach(function (sender: { getParameters: () => any; track: { kind: string; }; }) {
       var params = sender.getParameters();
-      params && params.codecs && params.codecs.forEach(function (c) {
+      params && params.codecs && params.codecs.forEach(function (c: { mimeType: string; clockRate: string; channels: string; payloadType: string; }) {
         if (kind && sender.track.kind !== kind) {
           return;
         }
@@ -69,6 +70,7 @@ export default function LiveStream() {
     localVideoRef.current.srcObject = null
     sdk.close();
     setSessionID(null)
+    setDrop('#')
   }
 
   const startPublish = () => {
@@ -76,9 +78,9 @@ export default function LiveStream() {
       sdk.close();
     }
 
-    const newSdk = new SrsRtcPublisherAsync();
+    const newSdk = SrsRtcPublisherAsync();
 
-    newSdk.pc.onicegatheringstatechange = (event) => {
+    newSdk.pc.onicegatheringstatechange = (event: any) => {
       if (newSdk.pc.iceGatheringState === 'complete') {
         setAcodecs(SrsRtcFormatSenders(newSdk.pc.getSenders(), 'audio'));
         setVcodecs(SrsRtcFormatSenders(newSdk.pc.getSenders(), 'video'));
@@ -87,13 +89,13 @@ export default function LiveStream() {
 
     setSdk(newSdk);
 
-    const newUrl = document.getElementById('txt_url').value;
+    const newUrl = url;
     newSdk.publish(newUrl)
-      .then((session) => {
+      .then((session: { sessionid: any; simulator: any; }) => {
         setSessionID(session.sessionid);
-        document.getElementById('simulator-drop').setAttribute('href', `${session.simulator}?drop=1&username=${session.sessionid}`);
+        setDrop(`${session.simulator}?drop=1&username=${session.sessionid}`)
       })
-      .catch((reason) => {
+      .catch((reason: { name: string; message: any; }) => {
         if (reason instanceof SrsError) {
           if (reason.name === 'HttpsRequiredError') {
             alert(`WebRTC推流必须是HTTPS或者localhost：${reason.name} ${reason.message}`);
@@ -115,6 +117,7 @@ export default function LiveStream() {
         newSdk.close();
         localVideoRef.current.srcObject = null
         setSessionID(null)
+        setDrop(null)
         console.error(reason);
       });
   };
@@ -145,7 +148,7 @@ export default function LiveStream() {
 
       <video ref={localVideoRef} id="rtc_media_player" autoPlay playsInline></video>
 
-      <div className="container">
+      <div className="container pb-5">
         <div className="form-inline">
           URL:
           <input
@@ -158,20 +161,20 @@ export default function LiveStream() {
         </div>
 
         <label></label>
-        SessionID: <span id="sessionid">{sessionID}</span>
-
+        SessionID: <span id="sessionid">{sessionID}</span> 
+        <br />
         <label></label>
         Audio: <span id="acodecs">{acodecs}</span>
         <br />
         Video: <span id="vcodecs">{vcodecs}</span>
-
+        <br />
         <label></label>
-        Simulator: <a href='#' id='simulator-drop'>Drop</a>
+        Simulator: <a href={drop} id='simulator-drop'>Drop</a>
 
       </div>
 
-      <button onClick={startStream}>Start Stream</button>
-      <button onClick={stopStream}>Stop Stream</button>
+      <button onClick={startStream}>Start Stream</button> 
+      <button onClick={stopStream} className='pl-5'>Stop Stream</button>
     </div>
   )
 }
