@@ -15,6 +15,39 @@ export default function LiveStream() {
   const [vcodecs, setVcodecs] = useState('') as any;
 
   const localVideoRef = useRef(null) as any;
+  const toggleBtnRef = useRef(null) as any;
+
+  const [isPiPMode, setIsPiPMode] = useState(false);
+
+  useEffect(() => {
+    const video = localVideoRef.current;
+    const toggleBtn = toggleBtnRef.current;
+
+    const togglePiPMode = async () => {
+      toggleBtn.disabled = true;
+
+      try {
+        if (video !== document.pictureInPictureElement) {
+          await video.requestPictureInPicture();
+          setIsPiPMode(true);
+        } else {
+          await document.exitPictureInPicture();
+          setIsPiPMode(false);
+        }
+      } catch (error) {
+        console.log(error);
+      } finally {
+        toggleBtn.disabled = false;
+      }
+    };
+
+    toggleBtn.addEventListener('click', togglePiPMode);
+
+    return () => {
+      // Cleanup: remove event listener when component unmounts
+      toggleBtn.removeEventListener('click', togglePiPMode);
+    };
+  }, []);
 
   useEffect(() => {
     navigator.mediaDevices.enumerateDevices().then(devices => {
@@ -23,6 +56,7 @@ export default function LiveStream() {
       setSelectedVideoDevice(videoDevices[0]?.deviceId);
     });
   }, []);
+
   function SrsRtcFormatSenders(senders: any[], kind: string) {
     var codecs: string[] = [];
     senders.forEach(function (sender: { getParameters: () => any; track: { kind: string; }; }) {
@@ -91,7 +125,7 @@ export default function LiveStream() {
 
     const newUrl = url;
     newSdk.publish(newUrl)
-      .then((session: { sessionid: any; simulator: any; }) => {
+      .then(async (session: { sessionid: any; simulator: any; }) => {
         setSessionID(session.sessionid);
         setDrop(`${session.simulator}?drop=1&username=${session.sessionid}`)
       })
@@ -161,7 +195,7 @@ export default function LiveStream() {
         </div>
 
         <label></label>
-        SessionID: <span id="sessionid">{sessionID}</span> 
+        SessionID: <span id="sessionid">{sessionID}</span>
         <br />
         <label></label>
         Audio: <span id="acodecs">{acodecs}</span>
@@ -170,10 +204,14 @@ export default function LiveStream() {
         <br />
         <label></label>
         Simulator: <a href={drop} id='simulator-drop'>Drop</a>
+        <br />
+        <button id="PiP" ref={toggleBtnRef}>
+          {isPiPMode ? 'Exit Pip Mode' : 'Enable Pip Mode'}
+        </button>
 
       </div>
 
-      <button onClick={startStream}>Start Stream</button> 
+      <button onClick={startStream}>Start Stream</button>
       <button onClick={stopStream} className='pl-5'>Stop Stream</button>
     </div>
   )
