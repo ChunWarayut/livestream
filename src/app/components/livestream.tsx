@@ -181,7 +181,7 @@ export default function LiveStream() {
         </select>
       )}
 
-      <video ref={localVideoRef} id="rtc_media_player" autoPlay playsInline></video>
+      <video ref={localVideoRef} id="rtc_media_player" autoPlay playsInline muted></video>
 
       <div className="container pb-5">
         <div className="form-inline">
